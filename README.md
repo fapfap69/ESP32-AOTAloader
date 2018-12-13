@@ -1,3 +1,3 @@
-# Asimmetric OTA
+# Asimetric OTA
 
 Caming soon ...
