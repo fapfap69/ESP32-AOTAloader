@@ -116,11 +116,13 @@ void app_main()
     mQtt->init();
 
     while (mQtt->Publication("Application/Name", APPLICATIONNAME,0) == INVALID_PUBLICATION) {
-    	vTaskDelay( 500 / portTICK_PERIOD_MS ); // waits for one second
+    	vTaskDelay( 5000 / portTICK_PERIOD_MS ); // waits for one second
     }
     mQtt->Publication("Application/Version",VERSION,0);
     mQtt->Subscribe("Command", mQttCommandCBfunction);
 
+    UBaseType_t uxHighWaterMark = uxTaskGetStackHighWaterMark( NULL );
+    ESP_LOGE(TAG, "The Stack Dimension is %d ",uxHighWaterMark);
 
    	blkLed->SetPat(BKS_ACTIVE_OK);
     bool isFinishedTheJob = false;
@@ -132,8 +134,18 @@ void app_main()
 				pdFALSE, pdFALSE, xTicksToWait);
 
     	if( (uxBits & (UpdateFirmware::UPDFRW_DONE)) == UpdateFirmware::UPDFRW_DONE) {
+    		uxHighWaterMark = uxTaskGetStackHighWaterMark( NULL );
+    		ESP_LOGE(TAG, "After The Stack Dimension is %d ",uxHighWaterMark);
     		ESP_LOGI(TAG, "The firmware download succeeded !");
-    		isFinishedTheJob = true;
+    		if(UpFwr->CheckUpdate() == ESP_OK) {
+    		    // --  Reboot the system in the application partition ---
+    		    UpFwr->SwitchToApplication();
+    		    UpFwr->Restart();
+    		    isFinishedTheJob = true;
+    		} else {
+        		ESP_LOGE(TAG, "The firmware downloaded have a wrong SHA256 validation value !");
+        		UpFwr->ResetAfterError();
+    		}
     	} else if( (uxBits & (UpdateFirmware::UPDFRW_ERROR)) == UpdateFirmware::UPDFRW_ERROR) {
     		ESP_LOGE(TAG, "The firmware download returned an error !");
     		UpFwr->ResetAfterError();
@@ -145,9 +157,6 @@ void app_main()
     	}
     }
 
-    // --  Reboot the system in the application partition ---
-    UpFwr->SwitchToApplication();
-    UpFwr->Restart();
     while(true) {
 		vTaskDelay( 1000 / portTICK_PERIOD_MS ); // waits for the reboot
     }
